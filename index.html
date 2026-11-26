@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#15140f">
+<title>Bulb</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #ffffff; --ink: #1d1b18; --muted: #77716a;
+    --line: #e4e0d9; --accent: #5a00ff; --err: #c0392b; --live: #2f8f4e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15140f; --card: #1f1e19; --ink: #f1eee8; --muted: #9b958c; --line: #33312a; --live: #4cc872; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.4 -apple-system, system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 460px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .glow { width: 52px; height: 52px; border-radius: 50%; flex: none; background: var(--accent);
+    transition: background .25s, box-shadow .25s, opacity .25s; }
+  .glow.off { opacity: .15; box-shadow: none !important; }
+  h1 { font-size: 20px; margin: 0; }
+  #status { font-size: 13px; color: var(--muted); }
+  #status.err { color: var(--err); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  h2 span { text-transform: none; letter-spacing: 0; color: var(--ink); font-weight: 500; }
+  button { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 10px; padding: 12px; cursor: pointer; }
+  button.on, button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  button.small { padding: 7px 11px; font-size: 14px; border-radius: 8px; }
+  button.big { width: 100%; padding: 16px; font-size: 17px; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .power { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; }
+  .ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .temp input[type=range] { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; margin: 10px 0;
+    background: linear-gradient(90deg, #cfe3ff, #fff6e6, #ffb347); }
+  .temp input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--card); border: 2px solid var(--ink); }
+  .wheelwrap { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 0 auto 14px; touch-action: none; }
+  #wheel { width: 100%; height: 100%; border-radius: 50%; display: block; }
+  #marker { position: absolute; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.4); transform: translate(-50%, -50%); pointer-events: none; }
+  .picker { display: flex; align-items: center; gap: 10px; }
+  input[type=color] { width: 48px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+  #hexOut { font: 13px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; }
+  .sw { position: relative; aspect-ratio: 1; border-radius: 50%; padding: 0; border: 2px solid var(--line); }
+  .add { aspect-ratio: 1; border-radius: 50%; padding: 0; border: 2px dashed var(--muted); color: var(--muted); font-size: 22px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .live { display: none; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px;
+    border: 1px solid var(--live); color: var(--live); }
+  .live.show { display: flex; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .fx { display: flex; align-items: center; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .fx:first-child { border-top: 0; padding-top: 0; }
+  .fx .meta { flex: 1; min-width: 0; }
+  .fx .name { font-weight: 600; }
+  .fx .sub { font-size: 12px; color: var(--muted); }
+  .strip { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .strip i { flex: 1; }
+  .fx.playing .name::after { content: " ● playing"; color: var(--live); font-weight: 500; font-size: 12px; }
+  #editor { display: none; } #editor.show { display: block; }
+  label.f { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text] { width: 100%; font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .seg button { padding: 10px 4px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 38px; }
+  .chip { width: 38px; height: 38px; border-radius: 8px; border: 2px solid var(--line); padding: 0; }
+  .modehelp { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  #controls { display: none; } body.connected #controls { display: block; }
+  body.connected #connectCard { display: none; }
+  .note { font-size: 13px; color: var(--muted); }
+  footer { font-size: 12px; color: var(--muted); text-align: center; margin-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="glow off" id="glow"></div>
+    <div class="grow"><h1>BeeWi SmartLite</h1><div id="status">Not connected</div></div>
+    <button class="small" id="disc" style="display:none">Disconnect</button>
+  </header>
+
+  <section id="connectCard">
+    <button class="big primary" id="connect">Connect to bulb</button>
+    <p class="note" id="connectNote">Your phone talks to the bulb directly over Bluetooth. Pick the bulb from the list.
+      It shows up as a long number (starting <b>0602</b>), not as "BeeWi". Close the BeeWi app first, because the bulb only accepts one connection at a time.</p>
+    <p class="note"><a href="#" id="showAll">Bulb not in the list? Show all devices</a></p>
+  </section>
+
+  <div id="controls">
+    <section>
+      <div class="power"><button id="btnOn">On</button><button id="btnOff">Off</button></div>
+    </section>
+
+    <section>
+      <h2>Brightness <span id="bVal">–</span></h2>
+      <input type="range" id="bright" min="2" max="11" step="1">
+      <div class="ends"><span>Dim</span><span>Bright</span></div>
+    </section>
+
+    <section class="temp">
+      <h2>White <span id="wVal">–</span></h2>
+      <input type="range" id="white" min="2" max="11" step="1" value="11">
+      <div class="ends"><span>Cool</span><span>Warm</span></div>
+    </section>
+
+    <section>
+      <h2>Colour <span id="cVal">–</span></h2>
+      <div class="wheelwrap"><canvas id="wheel" width="560" height="560"></canvas><div id="marker"></div></div>
+      <div class="picker">
+        <input type="color" id="color"><span id="hexOut">#000000</span><span class="grow"></span>
+        <button class="small" id="saveColor">Save colour</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Saved colours <button class="small" id="editSaved">Edit</button></h2>
+      <div class="swatches" id="saved"></div>
+      <p class="hint" id="savedHint">Tap to apply.</p>
+    </section>
+
+    <section>
+      <h2>Effects <button class="small" id="newFx">+ New</button></h2>
+      <div class="live" id="live"><span class="dot"></span><span class="grow" id="liveName"></span>
+        <button class="small" id="stopFx">Stop</button></div>
+      <div id="fxList"></div>
+      <p class="hint">Effects run on the phone, so keep this app open with the screen on while one plays.</p>
+    </section>
+
+    <section id="editor">
+      <h2 id="edTitle">New effect</h2>
+      <label class="f" for="edName">Name</label>
+      <input type="text" id="edName" maxlength="40" placeholder="My effect">
+      <label class="f">Style</label>
+      <div class="seg" id="edMode">
+        <button data-mode="cycle">Cycle</button><button data-mode="fade">Fade</button>
+        <button data-mode="strobe">Strobe</button><button data-mode="flicker">Flicker</button>
+      </div>
+      <div class="modehelp" id="modeHelp"></div>
+      <label class="f" for="edSpeed">Speed: <b id="edSpeedVal"></b></label>
+      <input type="range" id="edSpeed" min="0" max="100" step="1">
+      <div class="ends"><span>Fast</span><span>Slow</span></div>
+      <label class="f">Colours (in order, tap one to remove)</label>
+      <div class="chips" id="edColors"></div>
+      <div class="row" style="margin-top:8px"><button class="small" id="edAddCur">+ Add current colour</button></div>
+      <p class="hint">Or tap a saved colour while editing.</p>
+      <label class="f"><input type="checkbox" id="edShuffle"> Shuffle order each loop</label>
+      <div class="row" style="margin-top:16px">
+        <button class="primary" id="edSave">Save</button><button id="edPreview">Preview</button>
+        <span class="grow"></span><button id="edDelete">Delete</button><button id="edCancel">Cancel</button>
+      </div>
+    </section>
+  </div>
+
+  <footer>state <code id="raw">–</code></footer>
+</main>
+
+<script>
+// ===================== Bulb protocol =====================
+const SVC   = "a8b3fff0-4834-4051-89d0-3de95cddd318";
+const CTRL  = "a8b3fff1-4834-4051-89d0-3de95cddd318";
+const STATE = "a8b3fff2-4834-4051-89d0-3de95cddd318";
+const frame = (cmd, ...v) => new Uint8Array([0x55, cmd, ...v, 0x0D, 0x0A]);
+const CMD = {
+  power: on => [frame(0x10, on ? 1 : 0)],
+  brightness: v => [frame(0x12, clamp(v, 2, 11))],
+  white: v => [frame(0x14, 0x0B), frame(0x11, clamp(v, 2, 11))],   // 0x14 = white mode, 0x11 = tone (2 cool .. 11 warm)
+  color: rgb => [frame(0x13, ...rgb.map(x => clamp(x, 0, 255)))],
+};
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = id => document.getElementById(id);
+const hex = rgb => "#" + rgb.map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+const toRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+
+// ===================== Bluetooth link =====================
+let device = null, ctrlCh = null, stateCh = null, wantConnected = false;
+let chain = Promise.resolve();          // serialises all GATT operations
+
+function status(msg, err) { $("status").textContent = msg; $("status").className = err ? "err" : ""; }
+
+async function attach() {
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  ctrlCh = await svc.getCharacteristic(CTRL);
+  stateCh = await svc.getCharacteristic(STATE);
+}
+
+async function connect(all) {
+  if (!navigator.bluetooth) {
+    status("Bluetooth isn't available in this browser. On iPhone, open this page in the Bluefy app.", true);
+    return;
+  }
+  try {
+    const opts = all
+      ? { acceptAllDevices: true, optionalServices: [SVC] }
+      : { filters: [{ namePrefix: "0602" }, { namePrefix: "BeeWi" }, { namePrefix: "BSL" }, { services: [SVC] }], optionalServices: [SVC] };
+    device = await navigator.bluetooth.requestDevice(opts);
+    device.addEventListener("gattserverdisconnected", onDropped);
+    status("Connecting…");
+    wantConnected = true;
+    await attach();
+    document.body.classList.add("connected");
+    $("disc").style.display = "";
+    await refresh();
+  } catch (e) {
+    if (e.name !== "NotFoundError") status("Couldn't connect: " + e.message, true);   // NotFoundError = picker cancelled
+  }
+}
+
+async function onDropped() {
+  ctrlCh = stateCh = null;
+  if (!wantConnected) return;
+  stopEffect(false);
+  status("Connection lost, reconnecting…", true);
+  for (let i = 0; i < 5 && wantConnected; i++) {
+    try { await attach(); status("Reconnected"); await refresh(); return; }
+    catch { await sleep(1500); }
+  }
+  status("Lost the bulb. Tap Disconnect, then Connect again.", true);
+}
+
+function disconnect() {
+  wantConnected = false;
+  stopEffect(false);
+  try { device && device.gatt.disconnect(); } catch {}
+  document.body.classList.remove("connected");
+  $("disc").style.display = "none";
+  $("glow").classList.add("off");
+  status("Not connected");
+}
+
+// Queue a GATT job; retries once after re-attaching if the link hiccups.
+function gatt(job) {
+  const run = async () => {
+    try { return await job(); }
+    catch (e) {
+      if (!wantConnected) throw e;
+      await attach();
+      return await job();
+    }
+  };
+  const p = chain.then(run, run);
+  chain = p.catch(() => {});
+  return p;
+}
+const write = frames => gatt(async () => { for (const f of frames) await ctrlCh.writeValue(f); });
+
+async function readState() {
+  const v = await gatt(() => stateCh.readValue());
+  const b = new Uint8Array(v.buffer);
+  return { power: b[0] === 1, brightness: b[1] >> 4, white: b[1] & 15, mode: (b[1] & 15) ? "white" : "colour",
+           rgb: [b[2], b[3], b[4]], raw: [...b].map(x => x.toString(16).padStart(2, "0")).join(" ") };
+}
+async function refresh() {
+  try { render(await readState()); } catch (e) { status("Read failed: " + e.message, true); }
+}
+
+// Manual controls: one in flight at a time, newest pending wins (smooth slider/wheel drags).
+let busy = false, queued = null;
+async function send(kind, value) {
+  if (kind !== "brightness") stopEffect(false);
+  if (busy) { queued = [kind, value]; return; }
+  busy = true;
+  try { await write(CMD[kind](value)); await refresh(); }
+  catch (e) { status("Command failed: " + e.message, true); }
+  busy = false;
+  if (queued) { const [k, v] = queued; queued = null; send(k, v); }
+}
+
+// ===================== Rendering =====================
+let cur = "#5a00ff", dragging = false;
+function render(s) {
+  status((s.power ? "On" : "Off") + " · " + (s.mode === "white" ? "white" : "colour"));
+  $("btnOn").classList.toggle("on", s.power); $("btnOff").classList.toggle("on", !s.power);
+  $("bright").value = s.brightness; $("bVal").textContent = s.brightness + " / 11";
+  if (s.mode === "white") { $("white").value = s.white; $("wVal").textContent = s.white + " / 11"; } else $("wVal").textContent = "–";
+  const c = hex(s.rgb);
+  $("cVal").textContent = s.mode === "colour" ? c : "–";
+  if (!dragging && s.mode === "colour") setColour(c, false);
+  const t = (s.white - 2) / 9, mix = (a, b) => Math.round(a + (b - a) * t);
+  paintGlow(s.mode === "white" ? `rgb(${mix(214,255)},${mix(232,196)},${mix(255,120)})` : c, s.power);
+  $("raw").textContent = s.raw;
+}
+function paintGlow(bg, on = true) {
+  const g = $("glow"); g.style.background = bg; g.style.boxShadow = `0 0 28px 4px ${bg}`; g.classList.toggle("off", !on);
+}
+
+// ===================== Colour wheel =====================
+function hsv2rgb(h, s, v) { const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); }; return [f(5) * 255, f(3) * 255, f(1) * 255]; }
+function rgb2hsv([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(h * 60 + 360) % 360, mx ? d / mx : 0, mx]; }
+const cv = $("wheel");
+(function () { const ctx = cv.getContext("2d"), N = cv.width, R = N / 2, img = ctx.createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = x - R, dy = y - R, d = Math.hypot(dx, dy), i = (y * N + x) * 4; if (d > R) continue;
+    const [r, g, b] = hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1);
+    img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = d > R - 1 ? (R - d) * 255 : 255; }
+  ctx.putImageData(img, 0, 0); })();
+function placeMarker(h) { const [hu, s] = rgb2hsv(toRgb(h)), a = hu * Math.PI / 180, m = $("marker");
+  m.style.left = (50 + Math.cos(a) * s * 50) + "%"; m.style.top = (50 + Math.sin(a) * s * 50) + "%"; m.style.background = h; }
+function pickAt(e) { const r = cv.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+  const d = Math.min(Math.hypot(dx, dy), R); setColour(hex(hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1)), true); }
+cv.addEventListener("pointerdown", e => { dragging = true; cv.setPointerCapture(e.pointerId); pickAt(e); });
+cv.addEventListener("pointermove", e => dragging && pickAt(e));
+cv.addEventListener("pointerup", () => dragging = false);
+cv.addEventListener("pointercancel", () => dragging = false);
+function setColour(h, sendIt) { cur = h; placeMarker(h); $("color").value = h; $("hexOut").textContent = h; if (sendIt) send("color", toRgb(h)); }
+
+// ===================== Saved data (stored on the phone) =====================
+const DEFAULTS = {
+  colors: ["#ff2a00", "#ffb000", "#00ff6a", "#00b3ff", "#5a00ff", "#ff00a8"],
+  effects: [
+    { id: "rainbow", name: "Rainbow fade", mode: "fade", speed_ms: 2000, shuffle: false, colors: ["#ff0000", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#ff00ff"] },
+    { id: "police", name: "Police strobe", mode: "strobe", speed_ms: 300, shuffle: false, colors: ["#ff0000", "#0000ff"] },
+    { id: "party", name: "Party jump", mode: "cycle", speed_ms: 600, shuffle: true, colors: ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff"] },
+    { id: "sunset", name: "Sunset drift", mode: "fade", speed_ms: 5000, shuffle: false, colors: ["#ff3c00", "#ff8c00", "#ff0050", "#8000ff"] },
+    { id: "flame", name: "Flickering flame", mode: "flicker", speed_ms: 180, shuffle: false, colors: ["#ff3800", "#ff5a00", "#ff7a10", "#ff9a30", "#e02800"] },
+  ],
+};
+const KEY = "beewi-store-v1";
+let store;
+try { store = JSON.parse(localStorage.getItem(KEY)) || null; } catch { store = null; }
+if (!store || !Array.isArray(store.colors) || !Array.isArray(store.effects)) store = JSON.parse(JSON.stringify(DEFAULTS));
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch {} }
+
+let editingSaved = false, editing = null;
+function renderSaved() {
+  const box = $("saved"); box.innerHTML = "";
+  store.colors.forEach((c, i) => {
+    const b = document.createElement("button"); b.className = "sw"; b.style.background = c;
+    if (editingSaved) b.style.outline = "2px dashed var(--err)";
+    b.onclick = () => {
+      if (editingSaved) { store.colors.splice(i, 1); persist(); renderSaved(); }
+      else if (editing) { editing.colors.push(c); syncEditor(); }
+      else setColour(c, true);
+    };
+    box.appendChild(b);
+  });
+  const add = document.createElement("button"); add.className = "add"; add.textContent = "+"; add.onclick = saveCurrent; box.appendChild(add);
+  $("editSaved").textContent = editingSaved ? "Done" : "Edit";
+  $("savedHint").textContent = editingSaved ? "Tap a colour to remove it." : editing ? "Editing an effect: tap a colour to add it." : "Tap to apply.";
+}
+function saveCurrent() { if (!store.colors.includes(cur)) { store.colors.push(cur); persist(); renderSaved(); } }
+$("saveColor").onclick = saveCurrent;
+$("editSaved").onclick = () => { editingSaved = !editingSaved; renderSaved(); };
+
+// ===================== Effects (run on the phone) =====================
+const MIN_STEP = 120, FADE_STEP = 150;
+let fxToken = 0, fxName = null, fxMode = null, lastLit = null;
+
+async function fxColor(rgb) { if (rgb.some(Boolean)) lastLit = rgb; await write(CMD.color(rgb)); }
+async function hold(t0, ms, tok) { const left = ms - (performance.now() - t0); if (left > 0) await sleep(left); return tok === fxToken; }
+
+async function playFx(fx) {
+  stopEffect(false);
+  const tok = ++fxToken; fxName = fx.name; fxMode = fx.mode; renderLive();
+  const colors = (fx.colors.length ? fx.colors : ["#ffffff"]).map(toRgb);
+  const speed = Math.max(MIN_STEP, fx.speed_ms);
+  try {
+    await write(CMD.power(true));
+    while (tok === fxToken) {
+      const order = colors.slice();
+      if (fx.shuffle) order.sort(() => Math.random() - .5);
+      if (fx.mode === "strobe") {
+        const half = Math.max(MIN_STEP, speed / 2);
+        for (const c of order) {
+          let t0 = performance.now(); await fxColor(c); paintGlow(hex(c)); if (!await hold(t0, half, tok)) break;
+          t0 = performance.now(); await fxColor([0, 0, 0]); paintGlow("#000"); if (!await hold(t0, half, tok)) break;
+        }
+      } else if (fx.mode === "flicker") {
+        for (let n = 0; n < order.length; n++) {
+          const c = colors[Math.floor(Math.random() * colors.length)];
+          const k = Math.random() < .12 ? .25 + Math.random() * .25 : .6 + Math.random() * .4;
+          const rgb = c.map(x => Math.round(x * k)), t0 = performance.now();
+          await fxColor(rgb); paintGlow(hex(rgb));
+          if (!await hold(t0, Math.max(MIN_STEP, speed * (.5 + Math.random())), tok)) break;
+        }
+      } else if (fx.mode === "fade" && order.length > 1) {
+        const steps = Math.max(1, Math.round(speed / FADE_STEP));
+        outer: for (let i = 0; i < order.length; i++) {
+          const a = order[i], b = order[(i + 1) % order.length];
+          for (let s = 0; s < steps; s++) {
+            const t = s / steps, rgb = a.map((x, j) => Math.round(x + (b[j] - x) * t)), t0 = performance.now();
+            await fxColor(rgb); paintGlow(hex(rgb));
+            if (!await hold(t0, speed / steps, tok)) break outer;
+          }
+        }
+      } else {
+        for (const c of order) { const t0 = performance.now(); await fxColor(c); paintGlow(hex(c)); if (!await hold(t0, speed, tok)) break; }
+      }
+    }
+  } catch (e) {
+    if (tok === fxToken) { status("Effect stopped: " + e.message, true); stopEffect(false); }
+  }
+}
+function stopEffect(relight) {
+  const wasStrobe = fxMode === "strobe" && fxName;
+  fxToken++; fxName = null; fxMode = null; renderLive();
+  if (relight && wasStrobe && lastLit) write(CMD.color(lastLit)).then(refresh, () => {});
+  else if (relight) refresh();
+}
+function renderLive() {
+  $("live").classList.toggle("show", !!fxName);
+  $("liveName").textContent = fxName ? "Playing: " + fxName : "";
+  document.querySelectorAll(".fx").forEach(el => el.classList.toggle("playing", !!fxName && el.dataset.id === playingId));
+}
+let playingId = null;
+$("stopFx").onclick = () => { playingId = null; stopEffect(true); };
+
+const MODE_HELP = {
+  cycle: "Jumps from colour to colour. Speed = how long each colour stays.",
+  fade: "Blends smoothly between colours. Speed = time to fade to the next one.",
+  strobe: "Flashes each colour on and off. Speed = one flash (on + off).",
+  flicker: "Random colours at random strength and timing, like a flame. Speed = average flicker.",
+};
+const sliderToMs = v => Math.round(120 * Math.pow(10000 / 120, v / 100));
+const msToSlider = ms => Math.round(100 * Math.log(ms / 120) / Math.log(10000 / 120));
+const fmtMs = ms => ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + " s";
+
+function renderFx() {
+  const box = $("fxList"); box.innerHTML = "";
+  store.effects.forEach(fx => {
+    const row = document.createElement("div"); row.className = "fx"; row.dataset.id = fx.id;
+    row.innerHTML = `<div class="meta"><div class="name"></div><div class="sub">${fx.mode[0].toUpperCase() + fx.mode.slice(1)} · ${fmtMs(fx.speed_ms)}${fx.shuffle ? " · shuffle" : ""}</div>
+      <div class="strip">${fx.colors.map(c => `<i style="background:${c}"></i>`).join("")}</div></div>`;
+    row.querySelector(".name").textContent = fx.name;
+    const play = document.createElement("button"); play.className = "small primary"; play.textContent = "▶";
+    play.onclick = () => { playingId = fx.id; playFx(fx); };
+    const ed = document.createElement("button"); ed.className = "small"; ed.textContent = "Edit"; ed.onclick = () => openEditor(fx);
+    row.append(play, ed); box.appendChild(row);
+  });
+  renderLive();
+}
+
+function openEditor(fx) {
+  editing = fx ? JSON.parse(JSON.stringify(fx)) : { id: "fx" + Date.now(), name: "", mode: "fade", speed_ms: 1500, shuffle: false, colors: store.colors.slice(0, 3) };
+  $("edTitle").textContent = fx ? "Edit effect" : "New effect";
+  $("edName").value = editing.name; $("edShuffle").checked = editing.shuffle; $("edSpeed").value = msToSlider(editing.speed_ms);
+  $("edDelete").style.display = fx ? "" : "none";
+  syncEditor(); $("editor").classList.add("show"); renderSaved();
+  $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function closeEditor() { editing = null; $("editor").classList.remove("show"); renderSaved(); }
+function syncEditor() {
+  document.querySelectorAll("#edMode button").forEach(b => b.classList.toggle("on", b.dataset.mode === editing.mode));
+  $("modeHelp").textContent = MODE_HELP[editing.mode]; $("edSpeedVal").textContent = fmtMs(editing.speed_ms);
+  const box = $("edColors"); box.innerHTML = "";
+  editing.colors.forEach((c, i) => { const b = document.createElement("button"); b.className = "chip"; b.style.background = c;
+    b.onclick = () => { editing.colors.splice(i, 1); syncEditor(); }; box.appendChild(b); });
+  if (!editing.colors.length) box.innerHTML = '<span class="hint" style="margin:0">Add at least one colour.</span>';
+}
+function collect() { editing.name = $("edName").value.trim() || "Untitled effect"; editing.shuffle = $("edShuffle").checked; return editing; }
+document.querySelectorAll("#edMode button").forEach(b => b.onclick = () => { editing.mode = b.dataset.mode; syncEditor(); });
+$("edSpeed").oninput = e => { editing.speed_ms = sliderToMs(+e.target.value); syncEditor(); };
+$("edAddCur").onclick = () => { editing.colors.push(cur); syncEditor(); };
+$("edPreview").onclick = () => editing.colors.length ? (playingId = null, playFx(collect())) : status("Add at least one colour", true);
+$("edCancel").onclick = closeEditor;
+$("edDelete").onclick = () => { if (confirm(`Delete "${editing.name}"?`)) { store.effects = store.effects.filter(e => e.id !== editing.id); persist(); closeEditor(); renderFx(); } };
+$("edSave").onclick = () => {
+  if (!editing.colors.length) return status("Add at least one colour", true);
+  const fx = collect(), i = store.effects.findIndex(e => e.id === fx.id);
+  i >= 0 ? store.effects[i] = fx : store.effects.push(fx);
+  persist(); closeEditor(); renderFx();
+};
+$("newFx").onclick = () => openEditor(null);
+
+// ===================== Wiring =====================
+$("connect").onclick = () => connect(false);
+$("showAll").onclick = e => { e.preventDefault(); connect(true); };
+$("disc").onclick = disconnect;
+$("btnOn").onclick = () => send("power", true);
+$("btnOff").onclick = () => send("power", false);
+$("bright").oninput = e => { $("bVal").textContent = e.target.value + " / 11"; send("brightness", +e.target.value); };
+$("white").oninput = e => { $("wVal").textContent = e.target.value + " / 11"; send("white", +e.target.value); };
+$("color").oninput = e => setColour(e.target.value, true);
+
+setColour(cur, false); renderSaved(); renderFx();
+if (!navigator.bluetooth) {
+  $("connectNote").innerHTML = "This browser can't use Bluetooth. On iPhone, install the free <b>Bluefy – Web BLE Browser</b> app from the App Store and open this page in it.";
+}
+</script>
+</body>
+</html>
