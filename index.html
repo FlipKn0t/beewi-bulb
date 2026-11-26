@@ -44,12 +44,25 @@
   .temp input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
     background: var(--card); border: 2px solid var(--ink); }
   .wheelwrap { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 0 auto 14px; touch-action: none; }
-  #wheel { width: 100%; height: 100%; border-radius: 50%; display: block; }
-  #marker { position: absolute; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
+  .adder .wheelwrap { max-width: 220px; }
+  .wheel { width: 100%; height: 100%; border-radius: 50%; display: block; }
+  .marker { position: absolute; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff;
     box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.4); transform: translate(-50%, -50%); pointer-events: none; }
   .picker { display: flex; align-items: center; gap: 10px; }
   input[type=color] { width: 48px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
-  #hexOut { font: 13px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .hexin { width: 96px; font: 15px ui-monospace, Menlo, monospace; padding: 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: transparent; color: var(--ink); text-transform: lowercase; }
+  .cmyk { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .cmyk label { font-size: 11px; color: var(--muted); text-align: center; display: block; }
+  .cmyk input { width: 100%; font: 15px ui-monospace, Menlo, monospace; padding: 8px 4px; text-align: center; border-radius: 8px;
+    border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .cmyk label b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
+  .adder { border: 1px dashed var(--line); border-radius: 12px; padding: 12px; margin-top: 10px; }
+  .seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .seg2 button { padding: 9px; font-size: 14px; }
+  .adder [hidden] { display: none !important; }
+  .wtone { width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--line); margin-bottom: 8px; }
+  .chip.w { font: 600 13px system-ui; color: #5a4a2a; }
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; }
   .sw { position: relative; aspect-ratio: 1; border-radius: 50%; padding: 0; border: 2px solid var(--line); }
   .add { aspect-ratio: 1; border-radius: 50%; padding: 0; border: 2px dashed var(--muted); color: var(--muted); font-size: 22px; }
@@ -115,11 +128,8 @@
 
     <section>
       <h2>Colour <span id="cVal">–</span></h2>
-      <div class="wheelwrap"><canvas id="wheel" width="560" height="560"></canvas><div id="marker"></div></div>
-      <div class="picker">
-        <input type="color" id="color"><span id="hexOut">#000000</span><span class="grow"></span>
-        <button class="small" id="saveColor">Save colour</button>
-      </div>
+      <div id="mainPicker"></div>
+      <div class="row" style="margin-top:12px"><span class="grow"></span><button class="small" id="saveColor">Save colour</button></div>
     </section>
 
     <section>
@@ -149,14 +159,25 @@
       <label class="f" for="edSpeed">Speed: <b id="edSpeedVal"></b></label>
       <input type="range" id="edSpeed" min="0" max="100" step="1">
       <div class="ends"><span>Fast</span><span>Slow</span></div>
-      <label class="f">Colours (in order, tap one to remove)</label>
+      <label class="f">Steps in the effect (in order, tap one to remove)</label>
       <div class="chips" id="edColors"></div>
-      <div class="row" style="margin-top:8px"><button class="small" id="edAddCur">+ Add current colour</button></div>
-      <p class="hint">Or tap a saved colour while editing.</p>
+
+      <div class="adder">
+        <div class="seg2" id="adKind"><button data-kind="colour">Colour</button><button data-kind="white">White</button></div>
+        <div id="adColour"></div>
+        <div id="adWhite" class="temp" hidden>
+          <div class="wtone" id="adWhiteSwatch"></div>
+          <input type="range" id="adWhiteTone" min="2" max="11" step="1" value="11">
+          <div class="ends"><span>Cool</span><span id="adWhiteVal">11 / 11</span><span>Warm</span></div>
+        </div>
+        <label class="f" style="margin-top:10px"><input type="checkbox" id="adPreview" checked> Show on the bulb while choosing</label>
+        <button class="primary" id="adAdd" style="width:100%;margin-top:6px">+ Add to effect</button>
+        <p class="hint">You can also tap a saved colour to add it.</p>
+      </div>
       <label class="f"><input type="checkbox" id="edShuffle"> Shuffle order each loop</label>
-      <div class="row" style="margin-top:16px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px;margin-top:16px">
         <button class="primary" id="edSave">Save</button><button id="edPreview">Preview</button>
-        <span class="grow"></span><button id="edDelete">Delete</button><button id="edCancel">Cancel</button>
+        <button id="edDelete">Delete</button><button id="edCancel">Cancel</button>
       </div>
     </section>
   </div>
@@ -278,7 +299,7 @@ async function send(kind, value) {
 }
 
 // ===================== Rendering =====================
-let cur = "#5a00ff", dragging = false;
+let cur = "#5a00ff";
 function render(s) {
   status((s.power ? "On" : "Off") + " · " + (s.mode === "white" ? "white" : "colour"));
   $("btnOn").classList.toggle("on", s.power); $("btnOff").classList.toggle("on", !s.power);
@@ -286,9 +307,8 @@ function render(s) {
   if (s.mode === "white") { $("white").value = s.white; $("wVal").textContent = s.white + " / 11"; } else $("wVal").textContent = "–";
   const c = hex(s.rgb);
   $("cVal").textContent = s.mode === "colour" ? c : "–";
-  if (!dragging && s.mode === "colour") setColour(c, false);
-  const t = (s.white - 2) / 9, mix = (a, b) => Math.round(a + (b - a) * t);
-  paintGlow(s.mode === "white" ? `rgb(${mix(214,255)},${mix(232,196)},${mix(255,120)})` : c, s.power);
+  if (!mainPicker.dragging && document.activeElement?.closest?.("#mainPicker") == null && s.mode === "colour") setColour(c, false);
+  paintGlow(s.mode === "white" ? toneColor(s.white) : c, s.power);
   $("raw").textContent = s.raw;
 }
 function paintGlow(bg, on = true) {
@@ -299,21 +319,70 @@ function paintGlow(bg, on = true) {
 function hsv2rgb(h, s, v) { const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); }; return [f(5) * 255, f(3) * 255, f(1) * 255]; }
 function rgb2hsv([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
   if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(h * 60 + 360) % 360, mx ? d / mx : 0, mx]; }
-const cv = $("wheel");
-(function () { const ctx = cv.getContext("2d"), N = cv.width, R = N / 2, img = ctx.createImageData(N, N);
+function rgb2cmyk([r, g, b]) {
+  const k = 1 - Math.max(r, g, b) / 255;
+  if (k >= 1) return [0, 0, 0, 100];
+  const f = x => Math.round(((1 - x / 255 - k) / (1 - k)) * 100);
+  return [f(r), f(g), f(b), Math.round(k * 100)];
+}
+const cmyk2rgb = ([c, m, y, k]) => [c, m, y].map(x => Math.round(255 * (1 - x / 100) * (1 - k / 100)));
+// White tone 2 (cool) .. 11 (warm) -> an on-screen colour that suggests it
+const toneColor = v => { const t = (v - 2) / 9, mix = (a, b) => Math.round(a + (b - a) * t); return `rgb(${mix(214,255)},${mix(232,196)},${mix(255,120)})`; };
+
+// Pre-render the hue/saturation wheel once; each picker copies it.
+const WHEEL = document.createElement("canvas"); WHEEL.width = WHEEL.height = 560;
+(function () { const ctx = WHEEL.getContext("2d"), N = 560, R = N / 2, img = ctx.createImageData(N, N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = x - R, dy = y - R, d = Math.hypot(dx, dy), i = (y * N + x) * 4; if (d > R) continue;
     const [r, g, b] = hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1);
     img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = d > R - 1 ? (R - d) * 255 : 255; }
   ctx.putImageData(img, 0, 0); })();
-function placeMarker(h) { const [hu, s] = rgb2hsv(toRgb(h)), a = hu * Math.PI / 180, m = $("marker");
-  m.style.left = (50 + Math.cos(a) * s * 50) + "%"; m.style.top = (50 + Math.sin(a) * s * 50) + "%"; m.style.background = h; }
-function pickAt(e) { const r = cv.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
-  const d = Math.min(Math.hypot(dx, dy), R); setColour(hex(hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1)), true); }
-cv.addEventListener("pointerdown", e => { dragging = true; cv.setPointerCapture(e.pointerId); pickAt(e); });
-cv.addEventListener("pointermove", e => dragging && pickAt(e));
-cv.addEventListener("pointerup", () => dragging = false);
-cv.addEventListener("pointercancel", () => dragging = false);
-function setColour(h, sendIt) { cur = h; placeMarker(h); $("color").value = h; $("hexOut").textContent = h; if (sendIt) send("color", toRgb(h)); }
+
+// A colour picker: wheel + exact colour + hex + CMYK, all kept in sync. onPick(hex) fires on user changes.
+function createPicker(root, onPick) {
+  root.innerHTML = `
+    <div class="wheelwrap"><canvas class="wheel" width="560" height="560"></canvas><div class="marker"></div></div>
+    <div class="picker"><input type="color" title="Exact colour"><input class="hexin" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex"></div>
+    <div class="cmyk">
+      ${["C", "M", "Y", "K"].map((n, i) => `<div><label><b style="background:${["#00b7eb", "#ff0090", "#ffe600", "#222"][i]}"></b>${n} %</label>
+        <input type="number" inputmode="numeric" min="0" max="100" data-i="${i}"></div>`).join("")}
+    </div>`;
+  const cv = root.querySelector("canvas"), marker = root.querySelector(".marker"), native = root.querySelector("input[type=color]"),
+        hexin = root.querySelector(".hexin"), cm = [...root.querySelectorAll(".cmyk input")];
+  cv.getContext("2d").drawImage(WHEEL, 0, 0);
+  const p = { value: "#ffffff", dragging: false };
+  p.set = (h, from) => {
+    p.value = h;
+    const [hu, s] = rgb2hsv(toRgb(h)), a = hu * Math.PI / 180;
+    marker.style.left = (50 + Math.cos(a) * s * 50) + "%"; marker.style.top = (50 + Math.sin(a) * s * 50) + "%"; marker.style.background = h;
+    native.value = h;
+    if (from !== "hex") hexin.value = h;
+    if (from !== "cmyk") rgb2cmyk(toRgb(h)).forEach((v, i) => cm[i].value = v);
+  };
+  const pick = (h, from) => { p.set(h, from); onPick(h); };
+  const at = e => { const r = cv.getBoundingClientRect(), R = r.width / 2, dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+    const d = Math.min(Math.hypot(dx, dy), R); pick(hex(hsv2rgb((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, d / R, 1))); };
+  cv.addEventListener("pointerdown", e => { p.dragging = true; cv.setPointerCapture(e.pointerId); at(e); });
+  cv.addEventListener("pointermove", e => p.dragging && at(e));
+  cv.addEventListener("pointerup", () => p.dragging = false);
+  cv.addEventListener("pointercancel", () => p.dragging = false);
+  native.addEventListener("input", () => pick(native.value));
+  hexin.addEventListener("input", () => {
+    let v = hexin.value.trim().toLowerCase(); if (!v.startsWith("#")) v = "#" + v;
+    if (/^#[0-9a-f]{6}$/.test(v)) pick(v, "hex");
+    else if (/^#[0-9a-f]{3}$/.test(v)) pick("#" + [...v.slice(1)].map(c => c + c).join(""), "hex");
+  });
+  hexin.addEventListener("blur", () => hexin.value = p.value);
+  cm.forEach(inp => inp.addEventListener("input", () => {
+    const vals = cm.map(x => clamp(+x.value || 0, 0, 100));
+    pick(hex(cmyk2rgb(vals)), "cmyk");
+  }));
+  cm.forEach(inp => inp.addEventListener("blur", () => inp.value = clamp(+inp.value || 0, 0, 100)));
+  p.set(p.value);
+  return p;
+}
+
+const mainPicker = createPicker($("mainPicker"), h => { cur = h; send("color", toRgb(h)); });
+function setColour(h, sendIt) { cur = h; mainPicker.set(h); if (sendIt) send("color", toRgb(h)); }
 
 // ===================== Saved data (stored on the phone) =====================
 const DEFAULTS = {
@@ -357,45 +426,68 @@ $("editSaved").onclick = () => { editingSaved = !editingSaved; renderSaved(); };
 const MIN_STEP = 120, FADE_STEP = 150;
 let fxToken = 0, fxName = null, fxMode = null, lastLit = null;
 
-async function fxColor(rgb) { if (rgb.some(Boolean)) lastLit = rgb; await write(CMD.color(rgb)); }
+// An effect step is either a colour "#rrggbb" or a white "w2".."w11" (2 = coolest, 11 = warmest).
+const isWhite = s => s[0] === "w";
+const toneOf = s => clamp(+s.slice(1) || 11, 2, 11);
+const stepLook = s => isWhite(s) ? toneColor(toneOf(s)) : s;      // colour to show on screen
+const stepFrames = s => isWhite(s) ? CMD.white(toneOf(s)) : CMD.color(toRgb(s));
+
+async function fxStep(s) { lastLit = s; await write(stepFrames(s)); paintGlow(stepLook(s)); }
+async function fxRgb(rgb) { if (rgb.some(Boolean)) lastLit = hex(rgb); await write(CMD.color(rgb)); paintGlow(hex(rgb)); }
 async function hold(t0, ms, tok) { const left = ms - (performance.now() - t0); if (left > 0) await sleep(left); return tok === fxToken; }
 
 async function playFx(fx) {
   stopEffect(false);
   const tok = ++fxToken; fxName = fx.name; fxMode = fx.mode; renderLive();
-  const colors = (fx.colors.length ? fx.colors : ["#ffffff"]).map(toRgb);
+  const steps = fx.colors.length ? fx.colors.slice() : ["#ffffff"];
   const speed = Math.max(MIN_STEP, fx.speed_ms);
+  const now = () => performance.now();
   try {
     await write(CMD.power(true));
     while (tok === fxToken) {
-      const order = colors.slice();
+      const order = steps.slice();
       if (fx.shuffle) order.sort(() => Math.random() - .5);
       if (fx.mode === "strobe") {
         const half = Math.max(MIN_STEP, speed / 2);
-        for (const c of order) {
-          let t0 = performance.now(); await fxColor(c); paintGlow(hex(c)); if (!await hold(t0, half, tok)) break;
-          t0 = performance.now(); await fxColor([0, 0, 0]); paintGlow("#000"); if (!await hold(t0, half, tok)) break;
+        for (const s of order) {
+          let t0 = now(); await fxStep(s); if (!await hold(t0, half, tok)) break;
+          t0 = now(); await write(CMD.color([0, 0, 0])); paintGlow("#000"); if (!await hold(t0, half, tok)) break;
         }
       } else if (fx.mode === "flicker") {
         for (let n = 0; n < order.length; n++) {
-          const c = colors[Math.floor(Math.random() * colors.length)];
-          const k = Math.random() < .12 ? .25 + Math.random() * .25 : .6 + Math.random() * .4;
-          const rgb = c.map(x => Math.round(x * k)), t0 = performance.now();
-          await fxColor(rgb); paintGlow(hex(rgb));
+          const s = steps[Math.floor(Math.random() * steps.length)], t0 = now();
+          if (isWhite(s)) await fxStep(s);   // white can't be dimmed per step, only its tone set
+          else {
+            const k = Math.random() < .12 ? .25 + Math.random() * .25 : .6 + Math.random() * .4;
+            await fxRgb(toRgb(s).map(x => Math.round(x * k)));
+          }
           if (!await hold(t0, Math.max(MIN_STEP, speed * (.5 + Math.random())), tok)) break;
         }
       } else if (fx.mode === "fade" && order.length > 1) {
-        const steps = Math.max(1, Math.round(speed / FADE_STEP));
+        const n = Math.max(1, Math.round(speed / FADE_STEP));
         outer: for (let i = 0; i < order.length; i++) {
           const a = order[i], b = order[(i + 1) % order.length];
-          for (let s = 0; s < steps; s++) {
-            const t = s / steps, rgb = a.map((x, j) => Math.round(x + (b[j] - x) * t)), t0 = performance.now();
-            await fxColor(rgb); paintGlow(hex(rgb));
-            if (!await hold(t0, speed / steps, tok)) break outer;
+          if (isWhite(a) !== isWhite(b)) {
+            // colour <-> white can't blend (different light modes): show a, then move on
+            const t0 = now(); await fxStep(a); if (!await hold(t0, speed, tok)) break;
+          } else if (isWhite(a)) {
+            // white -> white: walk the tone, sending only when it changes
+            let last = null;
+            for (let k = 0; k < n; k++) {
+              const t0 = now(), v = Math.round(toneOf(a) + (toneOf(b) - toneOf(a)) * k / n);
+              if (v !== last) { await fxStep("w" + v); last = v; }
+              if (!await hold(t0, speed / n, tok)) break outer;
+            }
+          } else {
+            const A = toRgb(a), B = toRgb(b);
+            for (let k = 0; k < n; k++) {
+              const t0 = now(); await fxRgb(A.map((x, j) => Math.round(x + (B[j] - x) * k / n)));
+              if (!await hold(t0, speed / n, tok)) break outer;
+            }
           }
         }
       } else {
-        for (const c of order) { const t0 = performance.now(); await fxColor(c); paintGlow(hex(c)); if (!await hold(t0, speed, tok)) break; }
+        for (const s of order) { const t0 = now(); await fxStep(s); if (!await hold(t0, speed, tok)) break; }
       }
     }
   } catch (e) {
@@ -405,7 +497,7 @@ async function playFx(fx) {
 function stopEffect(relight) {
   const wasStrobe = fxMode === "strobe" && fxName;
   fxToken++; fxName = null; fxMode = null; renderLive();
-  if (relight && wasStrobe && lastLit) write(CMD.color(lastLit)).then(refresh, () => {});
+  if (relight && wasStrobe && lastLit) write(stepFrames(lastLit)).then(refresh, () => {});
   else if (relight) refresh();
 }
 function renderLive() {
@@ -431,7 +523,7 @@ function renderFx() {
   store.effects.forEach(fx => {
     const row = document.createElement("div"); row.className = "fx"; row.dataset.id = fx.id;
     row.innerHTML = `<div class="meta"><div class="name"></div><div class="sub">${fx.mode[0].toUpperCase() + fx.mode.slice(1)} · ${fmtMs(fx.speed_ms)}${fx.shuffle ? " · shuffle" : ""}</div>
-      <div class="strip">${fx.colors.map(c => `<i style="background:${c}"></i>`).join("")}</div></div>`;
+      <div class="strip">${fx.colors.map(c => `<i style="background:${stepLook(c)}"></i>`).join("")}</div></div>`;
     row.querySelector(".name").textContent = fx.name;
     const play = document.createElement("button"); play.className = "small primary"; play.textContent = "▶";
     play.onclick = () => { playingId = fx.id; playFx(fx); };
@@ -446,6 +538,7 @@ function openEditor(fx) {
   $("edTitle").textContent = fx ? "Edit effect" : "New effect";
   $("edName").value = editing.name; $("edShuffle").checked = editing.shuffle; $("edSpeed").value = msToSlider(editing.speed_ms);
   $("edDelete").style.display = fx ? "" : "none";
+  adColour = cur; adPicker.set(cur); syncAdder();
   syncEditor(); $("editor").classList.add("show"); renderSaved();
   $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -454,14 +547,35 @@ function syncEditor() {
   document.querySelectorAll("#edMode button").forEach(b => b.classList.toggle("on", b.dataset.mode === editing.mode));
   $("modeHelp").textContent = MODE_HELP[editing.mode]; $("edSpeedVal").textContent = fmtMs(editing.speed_ms);
   const box = $("edColors"); box.innerHTML = "";
-  editing.colors.forEach((c, i) => { const b = document.createElement("button"); b.className = "chip"; b.style.background = c;
-    b.onclick = () => { editing.colors.splice(i, 1); syncEditor(); }; box.appendChild(b); });
-  if (!editing.colors.length) box.innerHTML = '<span class="hint" style="margin:0">Add at least one colour.</span>';
+  editing.colors.forEach((c, i) => {
+    const b = document.createElement("button"); b.className = "chip" + (isWhite(c) ? " w" : ""); b.style.background = stepLook(c);
+    if (isWhite(c)) { b.textContent = "W"; b.title = "White " + toneOf(c) + " / 11"; } else b.title = c;
+    b.onclick = () => { editing.colors.splice(i, 1); syncEditor(); }; box.appendChild(b);
+  });
+  if (!editing.colors.length) box.innerHTML = '<span class="hint" style="margin:0">Add at least one colour or white.</span>';
 }
+
+// ----- "add a step" area in the editor -----
+let adKind = "colour", adColour = "#ff0000";
+const adPicker = createPicker($("adColour"), h => { adColour = h; if ($("adPreview").checked) send("color", toRgb(h)); });
+function syncAdder() {
+  document.querySelectorAll("#adKind button").forEach(b => b.classList.toggle("on", b.dataset.kind === adKind));
+  $("adColour").hidden = adKind !== "colour";
+  $("adWhite").hidden = adKind !== "white";
+  const v = +$("adWhiteTone").value;
+  $("adWhiteSwatch").style.background = toneColor(v);
+  $("adWhiteVal").textContent = v + " / 11";
+  $("adAdd").textContent = adKind === "white" ? "+ Add white to effect" : "+ Add colour to effect";
+}
+document.querySelectorAll("#adKind button").forEach(b => b.onclick = () => { adKind = b.dataset.kind; syncAdder(); });
+$("adWhiteTone").oninput = () => { syncAdder(); if ($("adPreview").checked) send("white", +$("adWhiteTone").value); };
+$("adAdd").onclick = () => {
+  editing.colors.push(adKind === "white" ? "w" + $("adWhiteTone").value : adColour);
+  syncEditor();
+};
 function collect() { editing.name = $("edName").value.trim() || "Untitled effect"; editing.shuffle = $("edShuffle").checked; return editing; }
 document.querySelectorAll("#edMode button").forEach(b => b.onclick = () => { editing.mode = b.dataset.mode; syncEditor(); });
 $("edSpeed").oninput = e => { editing.speed_ms = sliderToMs(+e.target.value); syncEditor(); };
-$("edAddCur").onclick = () => { editing.colors.push(cur); syncEditor(); };
 $("edPreview").onclick = () => editing.colors.length ? (playingId = null, playFx(collect())) : status("Add at least one colour", true);
 $("edCancel").onclick = closeEditor;
 $("edDelete").onclick = () => { if (confirm(`Delete "${editing.name}"?`)) { store.effects = store.effects.filter(e => e.id !== editing.id); persist(); closeEditor(); renderFx(); } };
@@ -481,9 +595,7 @@ $("btnOn").onclick = () => send("power", true);
 $("btnOff").onclick = () => send("power", false);
 $("bright").oninput = e => { $("bVal").textContent = e.target.value + " / 11"; send("brightness", +e.target.value); };
 $("white").oninput = e => { $("wVal").textContent = e.target.value + " / 11"; send("white", +e.target.value); };
-$("color").oninput = e => setColour(e.target.value, true);
-
-setColour(cur, false); renderSaved(); renderFx();
+setColour(cur, false); renderSaved(); renderFx(); syncAdder();
 if (!navigator.bluetooth) {
   $("connectNote").innerHTML = "This browser can't use Bluetooth. On iPhone, install the free <b>Bluefy – Web BLE Browser</b> app from the App Store and open this page in it.";
 }
